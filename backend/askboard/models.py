@@ -1,10 +1,10 @@
 """Domain models shared by services and the HTTP API."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from askboard.ingestion.types import PgType
 
@@ -76,3 +76,53 @@ class ColumnOverride(BaseModel):
 class ConfirmRequest(BaseModel):
     table_name: str | None = None
     columns: list[ColumnOverride] = []
+
+
+# --- ask -------------------------------------------------------------------------
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("question")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Question must not be blank")
+        return value
+
+
+class PanelColumn(BaseModel):
+    name: str
+    type: Literal["number", "text", "boolean", "date", "timestamp"]
+
+
+class TablePanel(BaseModel):
+    id: str
+    type: Literal["table"] = "table"
+    title: str
+    sql: str
+    columns: list[PanelColumn]
+    rows: list[list[Any]]
+    truncated: bool = False
+
+
+class FailedStep(BaseModel):
+    question: str
+    sql: str | None = None
+    error: str
+
+
+class AskResult(BaseModel):
+    question: str
+    title: str
+    summary: list[str] = []
+    panels: list[TablePanel] = []
+    follow_ups: list[str] = []
+    failed_steps: list[FailedStep] = []
+    error: str | None = None
+
+
+class AskRecord(AskResult):
+    id: UUID
+    created_at: datetime

@@ -42,4 +42,11 @@ describe('App', () => {
     expect(await screen.findByLabelText('CSV file')).toBeInTheDocument()
     expect(await screen.findByText('No datasets yet. Upload a CSV to get started.')).toBeInTheDocument()
   })
+
+  it('shows the question box once a workspace is selected', async () => {
+    const api = fakeApi({ listWorkspaces: vi.fn().mockResolvedValue([workspace]) })
+    renderWithApi(<App />, api)
+
+    expect(await screen.findByLabelText('Question')).toBeInTheDocument()
+  })
 })

@@ -114,6 +114,25 @@ describe('createApiClient', () => {
     expect(JSON.parse(init.body)).toEqual({ columns: [{ position: 1, name: 'order_id' }] })
   })
 
+  it('posts a question to the workspace', async () => {
+    const { api, fetchMock } = setup({ id: 'q-1' })
+
+    await api.ask('ws-1', 'Quantos pedidos?')
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('http://api.test/workspaces/ws-1/ask')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({ question: 'Quantos pedidos?' })
+  })
+
+  it('lists previous questions', async () => {
+    const { api, fetchMock } = setup([])
+
+    await api.listQuestions('ws-1')
+
+    expect(fetchMock.mock.calls[0][0]).toBe('http://api.test/workspaces/ws-1/questions')
+  })
+
   it('encodes path segments', async () => {
     const { api, fetchMock } = setup([])
 

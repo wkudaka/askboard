@@ -1,13 +1,17 @@
 import logging
 from contextlib import asynccontextmanager
+from collections.abc import Callable
 from typing import Protocol
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from askboard.api.routes import register_error_handlers, router
+from askboard.ask.llm import StructuredLLM, make_llm
+from askboard.ask.query_runner import QueryRunner
 from askboard.config import Settings, load_settings
 from askboard.db.database import Database
+from askboard.services.ask import AskService
 from askboard.services.datasets import DatasetService
 from askboard.services.workspaces import WorkspaceService
 
@@ -24,6 +28,7 @@ class DatabaseLike(Protocol):
 def create_app(
     settings: Settings | None = None,
     database: DatabaseLike | None = None,
+    llm_factory: Callable[[], StructuredLLM] | None = None,
 ) -> FastAPI:
     settings = settings or load_settings()
     db: DatabaseLike = database or Database(
@@ -49,6 +54,17 @@ def create_app(
     app.state.db = db
     app.state.workspaces = WorkspaceService(db)  # type: ignore[arg-type]
     app.state.datasets = DatasetService(db)  # type: ignore[arg-type]
+    app.state.ask = AskService(
+        db,  # type: ignore[arg-type]
+        app.state.datasets,
+        runner=QueryRunner(
+            db,  # type: ignore[arg-type]
+            statement_timeout_ms=settings.statement_timeout_ms,
+            max_rows=settings.max_query_rows,
+        ),
+        llm_factory=llm_factory or (lambda: make_llm(settings)),
+        max_correction_attempts=settings.max_correction_attempts,
+    )
 
     app.add_middleware(
         CORSMiddleware,

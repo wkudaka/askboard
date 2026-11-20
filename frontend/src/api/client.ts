@@ -1,4 +1,4 @@
-import type { ConfirmRequest, Dataset, DatasetPreview, Workspace } from './types'
+import type { AskRecord, ConfirmRequest, Dataset, DatasetPreview, Workspace } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -21,6 +21,8 @@ export interface ApiClient {
   listDatasets(workspaceId: string): Promise<Dataset[]>
   uploadDataset(workspaceId: string, file: File): Promise<DatasetPreview>
   confirmDataset(workspaceId: string, datasetId: string, body: ConfirmRequest): Promise<Dataset>
+  ask(workspaceId: string, question: string): Promise<AskRecord>
+  listQuestions(workspaceId: string): Promise<AskRecord[]>
 }
 
 export interface ApiClientOptions {
@@ -95,5 +97,7 @@ export function createApiClient({ baseUrl, fetch: fetchImpl = fetch }: ApiClient
     },
     confirmDataset: (workspaceId, datasetId, body) =>
       postJson(`/workspaces/${seg(workspaceId)}/datasets/${seg(datasetId)}/confirm`, body),
+    ask: (workspaceId, question) => postJson(`/workspaces/${seg(workspaceId)}/ask`, { question }),
+    listQuestions: (workspaceId) => request(`/workspaces/${seg(workspaceId)}/questions`),
   }
 }

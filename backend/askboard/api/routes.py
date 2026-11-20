@@ -3,7 +3,17 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 
-from askboard.models import ConfirmRequest, Dataset, DatasetPreview, Workspace, WorkspaceCreate
+from askboard.ask.llm import LLMNotConfiguredError
+from askboard.models import (
+    AskRecord,
+    AskRequest,
+    ConfirmRequest,
+    Dataset,
+    DatasetPreview,
+    Workspace,
+    WorkspaceCreate,
+)
+from askboard.services.ask import AskService
 from askboard.services.datasets import DatasetService
 from askboard.services.errors import ConflictError, InvalidInputError, NotFoundError, ServiceError
 from askboard.services.workspaces import WorkspaceService
@@ -19,6 +29,10 @@ def get_workspaces(request: Request) -> WorkspaceService:
 
 def get_datasets(request: Request) -> DatasetService:
     return request.app.state.datasets
+
+
+def get_ask(request: Request) -> AskService:
+    return request.app.state.ask
 
 
 async def read_limited(file: UploadFile, max_bytes: int) -> bytes:
@@ -90,6 +104,18 @@ async def get_dataset(workspace_id: UUID, dataset_id: UUID, datasets: DatasetSer
     return await datasets.get(workspace_id, dataset_id)
 
 
+# --- ask ------------------------------------------------------------------------------------
+
+@router.post("/workspaces/{workspace_id}/ask", response_model=AskRecord)
+async def ask(workspace_id: UUID, body: AskRequest, service: AskService = Depends(get_ask)):
+    return await service.ask(workspace_id, body.question)
+
+
+@router.get("/workspaces/{workspace_id}/questions", response_model=list[AskRecord])
+async def question_history(workspace_id: UUID, service: AskService = Depends(get_ask)):
+    return await service.history(workspace_id)
+
+
 # --- error mapping ---------------------------------------------------------------------------
 
 _STATUS_BY_ERROR: dict[type[ServiceError], int] = {
@@ -107,3 +133,10 @@ def register_error_handlers(app: FastAPI) -> None:
             status.HTTP_400_BAD_REQUEST,
         )
         return JSONResponse(status_code=code, content={"detail": str(exc)})
+
+    @app.exception_handler(LLMNotConfiguredError)
+    async def handle_llm_not_configured(_: Request, exc: LLMNotConfiguredError):
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": f"The question service is not configured: {exc}"},
+        )

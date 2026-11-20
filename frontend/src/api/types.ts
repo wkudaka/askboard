@@ -78,3 +78,34 @@ export interface ConfirmRequest {
   table_name?: string
   columns?: ColumnOverride[]
 }
+
+export type ColumnKind = 'number' | 'text' | 'boolean' | 'date' | 'timestamp'
+export type CellValue = string | number | boolean | null
+
+export interface TablePanel {
+  id: string
+  type: 'table'
+  title: string
+  sql: string
+  columns: { name: string; type: ColumnKind }[]
+  rows: CellValue[][]
+  truncated: boolean
+}
+
+export interface FailedStep {
+  question: string
+  sql: string | null
+  error: string
+}
+
+export interface AskRecord {
+  id: string
+  created_at: string
+  question: string
+  title: string
+  summary: string[]
+  panels: TablePanel[]
+  follow_ups: string[]
+  failed_steps: FailedStep[]
+  error: string | null
+}

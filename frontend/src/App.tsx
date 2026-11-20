@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiStatus } from './components/ApiStatus'
+import { AskPanel } from './components/AskPanel'
 import { DatasetList } from './components/DatasetList'
 import { DatasetUpload } from './components/DatasetUpload'
 import { WorkspacePicker } from './components/WorkspacePicker'
@@ -20,6 +21,10 @@ export default function App() {
         <WorkspacePicker value={workspaceId} onChange={setWorkspaceId} />
         {workspaceId && (
           <>
+            <section className="card">
+              <h2>Ask</h2>
+              <AskPanel key={workspaceId} workspaceId={workspaceId} />
+            </section>
             <section className="card">
               <h2>Upload data</h2>
               <DatasetUpload key={workspaceId} workspaceId={workspaceId} />

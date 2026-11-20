@@ -63,3 +63,41 @@ def test_settings_are_immutable():
     settings = load_settings({})
     with pytest.raises(Exception):
         settings.max_upload_mb = 1  # type: ignore[misc]
+
+
+def test_llm_defaults():
+    settings = load_settings({})
+
+    assert settings.llm_provider == "openrouter"
+    assert settings.llm_model == "openai/gpt-4o-mini"
+    assert settings.openrouter_api_key == ""
+    assert settings.llm_timeout_seconds == 60
+    assert settings.max_query_rows == 1000
+    assert settings.max_correction_attempts == 2
+
+
+def test_llm_overrides():
+    settings = load_settings({
+        "LLM_PROVIDER": "Bedrock",
+        "LLM_MODEL": "anthropic/claude",
+        "OPENROUTER_API_KEY": " sk-test ",
+        "LLM_TIMEOUT_SECONDS": "5",
+        "MAX_QUERY_ROWS": "50",
+        "MAX_CORRECTION_ATTEMPTS": "0",
+    })
+
+    assert settings.llm_provider == "bedrock"
+    assert settings.llm_model == "anthropic/claude"
+    assert settings.openrouter_api_key == "sk-test"
+    assert settings.llm_timeout_seconds == 5
+    assert settings.max_query_rows == 50
+    assert settings.max_correction_attempts == 0
+
+
+def test_unknown_llm_provider_raises():
+    with pytest.raises(ValueError, match="LLM_PROVIDER"):
+        load_settings({"LLM_PROVIDER": "skynet"})
+
+
+def test_secret_is_not_in_repr():
+    assert "sk-secret" not in repr(load_settings({"OPENROUTER_API_KEY": "sk-secret"}))

@@ -14,6 +14,8 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     listDatasets: vi.fn().mockResolvedValue([]),
     uploadDataset: vi.fn(),
     confirmDataset: vi.fn(),
+    ask: vi.fn(),
+    listQuestions: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
 }

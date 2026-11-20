@@ -171,3 +171,85 @@ async def test_list_and_get_datasets(client, pedidos_csv):
     assert [d["id"] for d in listed.json()] == [ds["id"]]
     assert fetched.json()["table_name"] == "pedidos"
     assert "preview_rows" not in fetched.json()
+
+
+# --- ask ---------------------------------------------------------------------------------
+
+from askboard.ask.llm import LLMNotConfiguredError  # noqa: E402
+from askboard.ask.prompts import NarrativeOutput, PlanOutput, SQLOutput  # noqa: E402
+from tests.fakes import ScriptedLLM  # noqa: E402
+
+
+@pytest.fixture
+async def make_client(clean_database):
+    """Builds a client whose app uses the given LLM (or raises the given error)."""
+    contexts = []
+
+    async def _make(llm):
+        settings = load_settings({"DATABASE_URL": clean_database, "AUTO_MIGRATE": "true", "DB_POOL_MAX_SIZE": "2"})
+
+        def llm_factory():
+            if isinstance(llm, Exception):
+                raise llm
+            return llm
+
+        app = create_app(settings=settings, llm_factory=llm_factory)
+        lifespan = app.router.lifespan_context(app)
+        await lifespan.__aenter__()
+        contexts.append(lifespan)
+        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+
+    yield _make
+    for ctx in contexts:
+        await ctx.__aexit__(None, None, None)
+
+
+async def loaded_workspace(c, pedidos_csv):
+    ws = await create_workspace(c)
+    ds = (await upload(c, ws["id"], pedidos_csv)).json()
+    await c.post(f"/workspaces/{ws['id']}/datasets/{ds['id']}/confirm", json={})
+    return ws
+
+
+async def test_ask_returns_dashboard_and_history(make_client, pedidos_csv):
+    llm = ScriptedLLM({
+        PlanOutput: [PlanOutput(sub_questions=[])],
+        SQLOutput: [SQLOutput(sql="SELECT count(*) AS pedidos FROM pedidos")],
+        NarrativeOutput: [NarrativeOutput(title="Total de pedidos", summary=["5 pedidos"], follow_ups=[])],
+    })
+    async with await make_client(llm) as c:
+        ws = await loaded_workspace(c, pedidos_csv)
+
+        response = await c.post(f"/workspaces/{ws['id']}/ask", json={"question": "Quantos pedidos?"})
+        history = await c.get(f"/workspaces/{ws['id']}/questions")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["title"] == "Total de pedidos"
+    assert body["panels"][0]["rows"] == [[5]]
+    assert body["panels"][0]["columns"] == [{"name": "pedidos", "type": "number"}]
+    assert [q["id"] for q in history.json()] == [body["id"]]
+
+
+async def test_ask_blank_question_is_422(make_client, pedidos_csv):
+    async with await make_client(ScriptedLLM({})) as c:
+        ws = await create_workspace(c)
+        response = await c.post(f"/workspaces/{ws['id']}/ask", json={"question": "   "})
+
+    assert response.status_code == 422
+
+
+async def test_ask_without_llm_configuration_is_503(make_client, pedidos_csv):
+    async with await make_client(LLMNotConfiguredError("OPENROUTER_API_KEY is not set")) as c:
+        ws = await loaded_workspace(c, pedidos_csv)
+        response = await c.post(f"/workspaces/{ws['id']}/ask", json={"question": "Quantos pedidos?"})
+
+    assert response.status_code == 503
+    assert "OPENROUTER_API_KEY" in response.json()["detail"]
+
+
+async def test_ask_unknown_workspace_is_404(make_client):
+    async with await make_client(ScriptedLLM({})) as c:
+        response = await c.post(f"/workspaces/{uuid.uuid4()}/ask", json={"question": "Oi?"})
+
+    assert response.status_code == 404

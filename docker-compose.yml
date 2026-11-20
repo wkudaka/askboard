@@ -23,6 +23,10 @@ services:
       AUTO_MIGRATE: "true"
       CORS_ORIGINS: http://localhost:5173
       LOG_FORMAT: text
+      # LLM for questions; read from the host env or a .env file next to this compose file
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      LLM_MODEL: ${LLM_MODEL:-openai/gpt-4o-mini}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     ports:
       - "8000:8000"
     healthcheck:

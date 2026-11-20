@@ -1,4 +1,33 @@
-import type { ColumnInfo, Dataset, DatasetPreview, Workspace } from '../api/types'
+import type { AskRecord, ColumnInfo, Dataset, DatasetPreview, Workspace } from '../api/types'
+
+export const answer: AskRecord = {
+  id: 'q-1',
+  created_at: '2026-11-20T11:00:00Z',
+  question: 'Quanto cada cliente gastou?',
+  title: 'Receita por cliente',
+  summary: ['Ana concentra 99% da receita', 'Carla não tem valor registrado'],
+  panels: [
+    {
+      id: 'p1',
+      type: 'table',
+      title: 'Quanto cada cliente gastou?',
+      sql: 'SELECT cliente, sum(valor_total) AS total FROM pedidos GROUP BY cliente',
+      columns: [
+        { name: 'cliente', type: 'text' },
+        { name: 'total', type: 'number' },
+      ],
+      rows: [
+        ['Ana', 1341.71],
+        ['Bruno', 10],
+        ['Carla', null],
+      ],
+      truncated: false,
+    },
+  ],
+  follow_ups: ['E por mês?'],
+  failed_steps: [],
+  error: null,
+}
 
 export const workspace: Workspace = {
   id: 'ws-1',

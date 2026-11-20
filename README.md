@@ -4,9 +4,12 @@ Upload CSVs, ask questions in plain language, get a dashboard built on the fly.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and the roadmap.
 
-**Status:** phase 2 (CSV ingestion). Workspaces, CSV upload with format/type inference
-(Brazilian and US number/date formats, currency, booleans), schema review in the UI, load into
-Postgres with per-column profiling. Next: phase 3 (ask questions; answers as tables).
+**Status:** phase 3 (ask questions). Natural-language questions are answered by a LangGraph
+pipeline (plan → SQL → guard → run → auto-correct → summary); answers are shown as tables with a
+written summary and follow-up questions. Next: phase 4 (charts chosen from the result shape).
+
+Questions need an LLM: set `OPENROUTER_API_KEY` in `backend/.env` (local run) or in a `.env` next to
+`docker-compose.yml` (Docker). Everything else works without it.
 
 ## Layout
 
@@ -56,6 +59,20 @@ python -m askboard.main         # http://localhost:8000
 | POST | `/workspaces/{id}/datasets` | Upload a CSV (multipart `file`): returns the inferred schema + first rows |
 | POST | `/workspaces/{id}/datasets/{ds}/confirm` | Load it, optionally overriding `table_name` and column `name`/`pg_type` |
 | GET | `/workspaces/{id}/datasets[/{ds}]` | List / get datasets with column profiles |
+| POST | `/workspaces/{id}/ask` | Answer `{"question": ...}`: title, summary, table panels (with SQL), follow-ups |
+| GET | `/workspaces/{id}/questions` | Last 20 answers, newest first |
+
+### How questions are answered
+
+1. **Context**: tables and column profiles of the workspace (types, ranges, sample values).
+2. **Plan**: the LLM splits comparisons into up to 3 sub-questions (one panel each).
+3. **SQL**: the LLM writes one PostgreSQL `SELECT` per sub-question.
+4. **Guard** (`askboard/ask/sql_guard.py`, sqlglot): a single read-only query, only this
+   workspace's tables, no dangerous functions (`pg_*`, `set_config`, `dblink`, ...).
+5. **Run** as `askboard_reader` in a `READ ONLY` transaction, `search_path` = workspace,
+   statement timeout, row limit.
+6. **Correct**: guard or Postgres errors go back to the LLM (`MAX_CORRECTION_ATTEMPTS`).
+7. **Summary**: title, insight bullets and follow-ups in the question's language.
 
 ### How CSV ingestion works
 
