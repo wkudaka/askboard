@@ -1,0 +1,173 @@
+import uuid
+
+import httpx
+import pytest
+
+from askboard.config import load_settings
+from askboard.server import create_app
+
+pytestmark = pytest.mark.integration
+
+
+@pytest.fixture
+async def client(clean_database):
+    settings = load_settings({
+        "DATABASE_URL": clean_database,
+        "AUTO_MIGRATE": "true",
+        "MAX_UPLOAD_MB": "1",
+        "DB_POOL_MAX_SIZE": "2",
+    })
+    app = create_app(settings=settings)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+            yield c
+
+
+async def create_workspace(client, name="Sales"):
+    response = await client.post("/workspaces", json={"name": name})
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+async def upload(client, workspace_id, content: bytes, filename="pedidos.csv"):
+    return await client.post(
+        f"/workspaces/{workspace_id}/datasets",
+        files={"file": (filename, content, "text/csv")},
+    )
+
+
+# --- workspaces --------------------------------------------------------------------
+
+async def test_create_list_and_get_workspace(client):
+    ws = await create_workspace(client)
+
+    listed = (await client.get("/workspaces")).json()
+    fetched = await client.get(f"/workspaces/{ws['id']}")
+
+    assert [w["id"] for w in listed] == [ws["id"]]
+    assert fetched.status_code == 200
+    assert fetched.json()["name"] == "Sales"
+
+
+async def test_blank_workspace_name_is_422(client):
+    assert (await client.post("/workspaces", json={"name": "   "})).status_code == 422
+    assert (await client.post("/workspaces", json={"name": ""})).status_code == 422
+
+
+async def test_unknown_workspace_is_404(client):
+    assert (await client.get(f"/workspaces/{uuid.uuid4()}")).status_code == 404
+
+
+# --- upload / preview ----------------------------------------------------------------
+
+async def test_upload_returns_preview(client, pedidos_csv):
+    ws = await create_workspace(client)
+
+    response = await upload(client, ws["id"], pedidos_csv)
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["status"] == "pending"
+    assert body["table_name"] == "pedidos"
+    assert body["preview_rows"][0][1] == "Ana"
+    assert {c["name"]: c["pg_type"] for c in body["columns"]}["valor_total"] == "numeric"
+
+
+async def test_upload_invalid_csv_is_422_with_reason(client):
+    ws = await create_workspace(client)
+
+    response = await upload(client, ws["id"], b"\x00\x01\x02binary")
+
+    assert response.status_code == 422
+    assert "binary" in response.json()["detail"]
+
+
+async def test_upload_too_large_is_413(client):
+    ws = await create_workspace(client)
+    too_big = b"a,b\n" + b"1,2\n" * (1024 * 1024 // 4 + 10)
+
+    response = await upload(client, ws["id"], too_big)
+
+    assert response.status_code == 413
+
+
+async def test_upload_to_unknown_workspace_is_404(client, pedidos_csv):
+    response = await upload(client, uuid.uuid4(), pedidos_csv)
+    assert response.status_code == 404
+
+
+async def test_upload_without_file_is_422(client):
+    ws = await create_workspace(client)
+    response = await client.post(f"/workspaces/{ws['id']}/datasets")
+    assert response.status_code == 422
+
+
+# --- confirm ---------------------------------------------------------------------------
+
+async def test_confirm_loads_dataset(client, pedidos_csv):
+    ws = await create_workspace(client)
+    ds = (await upload(client, ws["id"], pedidos_csv)).json()
+
+    response = await client.post(
+        f"/workspaces/{ws['id']}/datasets/{ds['id']}/confirm",
+        json={"table_name": "orders", "columns": [{"position": 4, "pg_type": "text"}]},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "loaded"
+    assert body["table_name"] == "orders"
+    assert body["row_count"] == 5
+    assert {c["name"]: c["pg_type"] for c in body["columns"]}["data_do_pedido"] == "text"
+
+
+async def test_confirm_with_empty_body_uses_inferred_schema(client, pedidos_csv):
+    ws = await create_workspace(client)
+    ds = (await upload(client, ws["id"], pedidos_csv)).json()
+
+    response = await client.post(f"/workspaces/{ws['id']}/datasets/{ds['id']}/confirm", json={})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "loaded"
+
+
+async def test_confirm_twice_is_409(client, pedidos_csv):
+    ws = await create_workspace(client)
+    ds = (await upload(client, ws["id"], pedidos_csv)).json()
+    url = f"/workspaces/{ws['id']}/datasets/{ds['id']}/confirm"
+
+    assert (await client.post(url, json={})).status_code == 200
+    assert (await client.post(url, json={})).status_code == 409
+
+
+async def test_confirm_invalid_type_is_422(client, pedidos_csv):
+    ws = await create_workspace(client)
+    ds = (await upload(client, ws["id"], pedidos_csv)).json()
+
+    response = await client.post(
+        f"/workspaces/{ws['id']}/datasets/{ds['id']}/confirm",
+        json={"columns": [{"position": 1, "pg_type": "varchar(10); DROP TABLE x"}]},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_confirm_unknown_dataset_is_404(client):
+    ws = await create_workspace(client)
+    response = await client.post(f"/workspaces/{ws['id']}/datasets/{uuid.uuid4()}/confirm", json={})
+    assert response.status_code == 404
+
+
+# --- reads -----------------------------------------------------------------------------
+
+async def test_list_and_get_datasets(client, pedidos_csv):
+    ws = await create_workspace(client)
+    ds = (await upload(client, ws["id"], pedidos_csv)).json()
+
+    listed = await client.get(f"/workspaces/{ws['id']}/datasets")
+    fetched = await client.get(f"/workspaces/{ws['id']}/datasets/{ds['id']}")
+
+    assert [d["id"] for d in listed.json()] == [ds["id"]]
+    assert fetched.json()["table_name"] == "pedidos"
+    assert "preview_rows" not in fetched.json()

@@ -1,3 +1,5 @@
 * text=auto eol=lf
 *.png binary
 *.ico binary
+# Test fixtures must keep their exact bytes (encoding, CRLF)
+backend/tests/fixtures/** -text

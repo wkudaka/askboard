@@ -1,0 +1,7 @@
+ID;Cliente;Valor Total;Data do Pedido;Pago;Código;Observação
+1;Ana;R$ 1.234,56;15/01/2024;Sim;10;
+2;Bruno;R$ 10,00;03/02/2024;Não;20;entrega rápida
+3;Ana;R$ 99,90;28/02/2024;Sim;A3;
+4;Carla;;01/03/2024;Não;40;cliente novo
+5;Bruno;R$ 5,50;02/03/2024
+6;Ana;R$ 7,25;10/03/2024;Sim;60;

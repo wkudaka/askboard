@@ -1,58 +1,45 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ApiError, type ApiClient } from './api/client'
-import { ApiProvider } from './api/ApiProvider'
-
-function renderApp(api: ApiClient) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ApiProvider client={api}>
-        <App />
-      </ApiProvider>
-    </QueryClientProvider>,
-  )
-}
-
-const onlineApi: ApiClient = {
-  getReadiness: async () => ({ status: 'ok' }),
-}
-
-const offlineApi: ApiClient = {
-  getReadiness: async () => {
-    throw new ApiError(503, 'Database not reachable')
-  },
-}
+import { ApiError } from './api/client'
+import { workspace } from './test/fixtures'
+import { fakeApi, renderWithApi } from './test/render'
 
 describe('App', () => {
   it('shows the product name', () => {
-    renderApp(onlineApi)
+    renderWithApi(<App />)
 
     expect(screen.getByRole('heading', { level: 1, name: 'Askboard' })).toBeInTheDocument()
   })
 
   it('shows the API as online when the backend is ready', async () => {
-    renderApp(onlineApi)
+    renderWithApi(<App />)
 
     expect(await screen.findByText('API online')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('API online')
   })
 
   it('shows the API as offline when the backend is not ready', async () => {
-    renderApp(offlineApi)
+    const api = fakeApi({
+      getReadiness: vi.fn().mockRejectedValue(new ApiError(503, 'Database not reachable')),
+    })
+    renderWithApi(<App />, api)
 
     expect(await screen.findByText('API offline')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Database not reachable')
+    expect(screen.getByText(/Database not reachable/)).toBeInTheDocument()
   })
 
   it('shows a checking state before the readiness call resolves', () => {
-    const pendingApi: ApiClient = { getReadiness: () => new Promise(() => {}) }
-    renderApp(pendingApi)
+    const api = fakeApi({ getReadiness: () => new Promise(() => {}) })
+    renderWithApi(<App />, api)
 
-    expect(screen.getByRole('status')).toHaveTextContent('Checking API')
+    expect(screen.getByText('Checking API…')).toBeInTheDocument()
+  })
+
+  it('shows the upload area once a workspace is selected', async () => {
+    const api = fakeApi({ listWorkspaces: vi.fn().mockResolvedValue([workspace]) })
+    renderWithApi(<App />, api)
+
+    expect(await screen.findByLabelText('CSV file')).toBeInTheDocument()
+    expect(await screen.findByText('No datasets yet. Upload a CSV to get started.')).toBeInTheDocument()
   })
 })

@@ -4,8 +4,9 @@ Upload CSVs, ask questions in plain language, get a dashboard built on the fly.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and the roadmap.
 
-**Status:** phase 1 (scaffold): PostgreSQL + metadata schema and read-only role, FastAPI with
-health checks and auto-migrations, React app shell showing API status.
+**Status:** phase 2 (CSV ingestion). Workspaces, CSV upload with format/type inference
+(Brazilian and US number/date formats, currency, booleans), schema review in the UI, load into
+Postgres with per-column profiling. Next: phase 3 (ask questions; answers as tables).
 
 ## Layout
 
@@ -50,6 +51,23 @@ python -m askboard.main         # http://localhost:8000
 |---|---|---|
 | GET | `/healthz` | Liveness: always 200 while the process runs |
 | GET | `/readyz` | Readiness: 200 if Postgres answers, 503 otherwise |
+| POST | `/workspaces` | Create a workspace (`{"name": ...}`) and its `ws_<id>` schema |
+| GET | `/workspaces`, `/workspaces/{id}` | List / get workspaces |
+| POST | `/workspaces/{id}/datasets` | Upload a CSV (multipart `file`): returns the inferred schema + first rows |
+| POST | `/workspaces/{id}/datasets/{ds}/confirm` | Load it, optionally overriding `table_name` and column `name`/`pg_type` |
+| GET | `/workspaces/{id}/datasets[/{ds}]` | List / get datasets with column profiles |
+
+### How CSV ingestion works
+
+1. **Detect** encoding (UTF-8, UTF-8 BOM, cp1252) and delimiter (`,` `;` tab `|`).
+2. **Normalize** headers into snake_case ASCII identifiers (`Preço Unitário` → `preco_unitario`).
+3. **Infer** a type per column from all values: `boolean`, `bigint`, `numeric`, `date`,
+   `timestamp`, `timestamptz` or `text`. `;` files default to decimal comma; day-first dates
+   unless values prove month-first. Leading-zero codes (CEP, ids) stay `text`.
+4. **Review**: the raw file waits in `askboard.dataset_sources` until the user confirms.
+5. **Load** with `COPY`; rows that do not fit (wrong column count, unparseable value for a
+   forced type) are rejected and reported by line, never silently dropped.
+6. **Profile** each column (nulls, distinct, min/max, most frequent values) for the LLM context.
 
 ## Tests
 

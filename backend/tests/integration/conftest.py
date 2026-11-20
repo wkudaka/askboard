@@ -1,14 +1,18 @@
 import os
+from pathlib import Path
 
 import psycopg
 import pytest
 
 from askboard.db.database import Database
+from askboard.services.datasets import DatasetService
+from askboard.services.workspaces import WorkspaceService
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql://askboard:askboard@localhost:5433/askboard_test",
 )
+FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 
 
 def _reachable(url: str) -> bool:
@@ -46,3 +50,29 @@ async def database(clean_database: str):
         yield db
     finally:
         await db.close()
+
+
+@pytest.fixture
+async def migrated_database(database: Database) -> Database:
+    await database.migrate()
+    return database
+
+
+@pytest.fixture
+def workspaces(migrated_database: Database) -> WorkspaceService:
+    return WorkspaceService(migrated_database)
+
+
+@pytest.fixture
+def datasets(migrated_database: Database) -> DatasetService:
+    return DatasetService(migrated_database)
+
+
+@pytest.fixture
+def pedidos_csv() -> bytes:
+    return (FIXTURES / "pedidos.csv").read_bytes()
+
+
+@pytest.fixture
+def customers_csv() -> bytes:
+    return (FIXTURES / "customers.csv").read_bytes()
