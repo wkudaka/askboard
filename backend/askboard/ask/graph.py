@@ -7,6 +7,7 @@
 """
 
 import logging
+import re
 import unicodedata
 from typing import Any, TypedDict
 
@@ -25,13 +26,16 @@ from askboard.ask.prompts import (
 )
 from askboard.ask.query_runner import QueryExecutionError, QueryResult
 from askboard.ask.sql_guard import UnsafeQueryError, check_sql
-from askboard.models import AskResult, FailedStep, PanelColumn, TablePanel
+from askboard.models import AskResult, FailedStep, Panel, PanelColumn
+from askboard.viz.rules import plan_chart
 
 logger = logging.getLogger(__name__)
 
 NARRATIVE_MAX_ROWS = 30
 BLANK_QUESTION = "Please type a question."
 NO_DATA = "This workspace has no loaded data yet. Upload a CSV first."
+VALUE_FORMATS = {"number", "integer", "currency", "percent"}
+_CURRENCY_CODE = re.compile(r"^[A-Z]{3}$")
 
 
 class Runner:  # structural type of QueryRunner, so tests can pass a fake
@@ -48,11 +52,12 @@ class AskState(TypedDict, total=False):
     current_sql: str | None
     attempts: int
     last_error: str | None
-    panels: list[TablePanel]
+    panels: list[Panel]
     failed_steps: list[FailedStep]
     title: str
     summary: list[str]
     follow_ups: list[str]
+    currency: str | None
     error: str | None
 
 
@@ -85,6 +90,7 @@ class AskGraph:
             summary=state.get("summary") or [],
             panels=state.get("panels") or [],
             follow_ups=state.get("follow_ups") or [],
+            currency=state.get("currency"),
             failed_steps=state.get("failed_steps") or [],
             error=state.get("error"),
         )
@@ -126,14 +132,20 @@ class AskGraph:
             logger.info("Step %d query failed: %s", state["step"] + 1, exc)
             return {"last_error": str(exc)}
 
+        columns = [PanelColumn(name=c.name, type=c.type) for c in result.columns]
+        chart = plan_chart(columns, result.rows)
         panels = list(state["panels"])
-        panels.append(TablePanel(
+        panels.append(Panel(
             id=f"p{len(panels) + 1}",
+            type=chart.type,
             title=state["sub_questions"][state["step"]],
             sql=sql,
-            columns=[PanelColumn(name=c.name, type=c.type) for c in result.columns],
+            columns=columns,
             rows=result.rows,
             truncated=result.truncated,
+            encoding=chart.encoding,
+            alternatives=chart.alternatives,
+            formats=chart.formats,
         ))
         return {"panels": panels, "step": state["step"] + 1, "current_sql": None, "last_error": None}
 
@@ -162,7 +174,10 @@ class AskGraph:
 
         steps = [
             {
+                "id": p.id,
                 "question": p.title,
+                "chart": p.type,
+                "alternatives": p.alternatives,
                 "columns": [c.name for c in p.columns],
                 "rows": p.rows[:NARRATIVE_MAX_ROWS],
                 "truncated": p.truncated or len(p.rows) > NARRATIVE_MAX_ROWS,
@@ -174,7 +189,32 @@ class AskGraph:
         except LLMError:
             logger.warning("Narrative failed; returning panels without summary", exc_info=True)
             return {"title": state["question"], "summary": [], "follow_ups": []}
-        return {"title": output.title, "summary": output.summary, "follow_ups": output.follow_ups}
+        currency = (output.currency or "").strip().upper()
+        return {
+            "title": output.title,
+            "summary": output.summary,
+            "follow_ups": output.follow_ups,
+            "panels": [self._styled(p, output) for p in state["panels"]],
+            "currency": currency if _CURRENCY_CODE.match(currency) else None,
+        }
+
+    @staticmethod
+    def _styled(panel: Panel, output: NarrativeOutput) -> Panel:
+        style = next((s for s in output.panels if s.id == panel.id), None)
+        if style is None:
+            return panel
+        updates: dict[str, Any] = {}
+        if style.chart and style.chart in panel.alternatives:
+            updates["type"] = style.chart
+            updates["alternatives"] = [t for t in [panel.type, *panel.alternatives] if t != style.chart]
+        if style.title and style.title.strip():
+            updates["title"] = style.title.strip()
+        formats = {
+            col: fmt for col, fmt in style.formats.items() if col in panel.formats and fmt in VALUE_FORMATS
+        }
+        if formats:
+            updates["formats"] = {**panel.formats, **formats}
+        return panel.model_copy(update=updates)
 
     # --- routing ---------------------------------------------------------------------
 

@@ -4,9 +4,10 @@ Upload CSVs, ask questions in plain language, get a dashboard built on the fly.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and the roadmap.
 
-**Status:** phase 3 (ask questions). Natural-language questions are answered by a LangGraph
-pipeline (plan → SQL → guard → run → auto-correct → summary); answers are shown as tables with a
-written summary and follow-up questions. Next: phase 4 (charts chosen from the result shape).
+**Status:** phase 4 (dashboards). Natural-language questions are answered by a LangGraph
+pipeline (plan → SQL → guard → run → auto-correct → summary) and rendered as a dashboard: KPIs,
+line/bar/pie/stacked-bar/scatter charts or tables, chosen from the shape of each result, with a
+written summary and follow-up questions. Next: phase 5 (several related CSVs per workspace).
 
 Questions need an LLM: set `OPENROUTER_API_KEY` in `backend/.env` (local run) or in a `.env` next to
 `docker-compose.yml` (Docker). Everything else works without it.
@@ -72,7 +73,25 @@ python -m askboard.main         # http://localhost:8000
 5. **Run** as `askboard_reader` in a `READ ONLY` transaction, `search_path` = workspace,
    statement timeout, row limit.
 6. **Correct**: guard or Postgres errors go back to the LLM (`MAX_CORRECTION_ATTEMPTS`).
-7. **Summary**: title, insight bullets and follow-ups in the question's language.
+7. **Chart** (`askboard/viz/rules.py`): rules pick the panel from the result shape and list the
+   valid alternatives:
+
+   | Result shape | Panel |
+   |---|---|
+   | 1 row of numbers | KPI figures |
+   | date + numbers | line (bar when ≤ 3 points) |
+   | date + category + number (≤ 8 series) | multi-line |
+   | category + one additive, non-negative number, 2–6 categories | donut |
+   | category + numbers (≤ 30 categories) | bar (horizontal for many/long labels) |
+   | 2 categories + number | stacked bar |
+   | 2 numbers | scatter |
+   | anything else | table |
+
+8. **Summary**: title, insight bullets, follow-ups, panel titles, number formats and currency,
+   in the question's language. The LLM may only switch a panel to one of its listed alternatives.
+
+Every chart can be switched to its alternatives (always including a table) in the UI. Colors use a
+fixed, colorblind-validated categorical order with separate light/dark steps.
 
 ### How CSV ingestion works
 

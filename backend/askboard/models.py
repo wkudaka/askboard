@@ -97,14 +97,27 @@ class PanelColumn(BaseModel):
     type: Literal["number", "text", "boolean", "date", "timestamp"]
 
 
-class TablePanel(BaseModel):
+PanelType = Literal["kpi", "bar", "line", "pie", "stacked_bar", "scatter", "table"]
+ValueFormat = Literal["number", "integer", "currency", "percent"]
+
+
+class Encoding(BaseModel):
+    x: str | None = None
+    y: list[str] = []
+    series: str | None = None
+
+
+class Panel(BaseModel):
     id: str
-    type: Literal["table"] = "table"
+    type: PanelType = "table"
     title: str
     sql: str
     columns: list[PanelColumn]
     rows: list[list[Any]]
     truncated: bool = False
+    encoding: Encoding = Encoding()
+    alternatives: list[PanelType] = []
+    formats: dict[str, ValueFormat] = {}
 
 
 class FailedStep(BaseModel):
@@ -117,9 +130,10 @@ class AskResult(BaseModel):
     question: str
     title: str
     summary: list[str] = []
-    panels: list[TablePanel] = []
+    panels: list[Panel] = []
     follow_ups: list[str] = []
     failed_steps: list[FailedStep] = []
+    currency: str | None = None  # ISO 4217 code for 'currency' formats, when known
     error: str | None = None
 
 

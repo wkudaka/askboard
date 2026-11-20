@@ -2,7 +2,7 @@ import pytest
 
 from askboard.ask.graph import AskGraph
 from askboard.ask.llm import LLMError
-from askboard.ask.prompts import CorrectionOutput, NarrativeOutput, PlanOutput, SQLOutput
+from askboard.ask.prompts import CorrectionOutput, NarrativeOutput, PanelStyle, PlanOutput, SQLOutput
 from askboard.ask.query_runner import QueryExecutionError
 from tests.fakes import FakeRunner, ScriptedLLM
 
@@ -41,7 +41,10 @@ async def test_simple_question_returns_a_table_panel_and_narrative():
     assert result.summary == ["Ana accounts for 99% of revenue"]
     assert result.follow_ups == ["Which month sold the most?"]
     [panel] = result.panels
-    assert panel.type == "table"
+    assert panel.type == "pie"  # 2 customers, additive non-negative metric
+    assert panel.encoding.x == "cliente" and panel.encoding.y == ["total"]
+    assert panel.alternatives == ["bar", "table"]
+    assert panel.formats == {"total": "number"}
     assert panel.title == "Revenue by customer?"
     assert panel.sql == SQL_OK
     assert [c.name for c in panel.columns] == ["cliente", "total"]
@@ -240,3 +243,58 @@ async def test_workspace_without_data_is_rejected_without_llm_calls():
 
     assert "Upload" in result.error
     assert llm.calls == []
+
+
+# --- charts --------------------------------------------------------------------------------------
+
+def chart_llm(narrative: NarrativeOutput) -> ScriptedLLM:
+    return ScriptedLLM({
+        PlanOutput: [PlanOutput(sub_questions=[])],
+        SQLOutput: [SQLOutput(sql=SQL_OK)],
+        NarrativeOutput: [narrative],
+    })
+
+
+async def test_narrative_can_pick_an_allowed_alternative_chart():
+    result = await ask(chart_llm(NarrativeOutput(
+        title="t", summary=[], follow_ups=[], panels=[PanelStyle(id="p1", chart="bar")],
+    )))
+
+    assert result.panels[0].type == "bar"
+
+
+async def test_narrative_cannot_pick_a_chart_the_rules_did_not_allow():
+    result = await ask(chart_llm(NarrativeOutput(
+        title="t", summary=[], follow_ups=[], panels=[PanelStyle(id="p1", chart="scatter")],
+    )))
+
+    assert result.panels[0].type == "pie"
+
+
+async def test_narrative_sets_titles_and_formats():
+    result = await ask(chart_llm(NarrativeOutput(
+        title="t", summary=[], follow_ups=[], currency="BRL",
+        panels=[PanelStyle(id="p1", title="Receita por cliente", formats={"total": "currency", "ghost": "percent"})],
+    )))
+
+    panel = result.panels[0]
+    assert panel.title == "Receita por cliente"
+    assert panel.formats == {"total": "currency"}
+    assert result.currency == "BRL"
+
+
+@pytest.mark.parametrize("code", ["reais", "R$", "", "br"])
+async def test_invalid_currency_codes_are_dropped(code):
+    result = await ask(chart_llm(NarrativeOutput(title="t", summary=[], follow_ups=[], currency=code)))
+
+    assert result.currency is None
+
+
+async def test_narrative_prompt_lists_chart_options():
+    llm = chart_llm(NARRATIVE)
+
+    await ask(llm)
+
+    _, user = llm.calls_for(NarrativeOutput)[0]
+    assert '"chart": "pie"' in user
+    assert '"alternatives": ["bar", "table"]' in user

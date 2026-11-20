@@ -315,7 +315,7 @@ def infer_semantic_type(name: str, pg_type: PgType, options: ParseOptions, value
     if pg_type in (PgType.BIGINT, PgType.TEXT) and _ID_NAME.search(name):
         return "id"
     if pg_type in NUMBER_TYPES:
-        if options.currency or _MONEY_WORDS & set(name.split("_")):
+        if options.currency or is_money_name(name):
             return "currency"
         return "numeric"
 
@@ -326,3 +326,8 @@ def infer_semantic_type(name: str, pg_type: PgType, options: ParseOptions, value
     ):
         return "categorical"
     return "text"
+
+
+def is_money_name(name: str) -> bool:
+    """True when a snake_case column name suggests a monetary value."""
+    return bool(_MONEY_WORDS & set(name.lower().split("_")))

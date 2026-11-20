@@ -22,10 +22,14 @@ export const answer: AskRecord = {
         ['Carla', null],
       ],
       truncated: false,
+      encoding: { x: 'cliente', y: ['total'], series: null },
+      alternatives: [],
+      formats: { total: 'number' },
     },
   ],
   follow_ups: ['E por mês?'],
   failed_steps: [],
+  currency: null,
   error: null,
 }
 

@@ -1,5 +1,5 @@
 import type { AskRecord } from '../api/types'
-import { TableView } from './TableView'
+import { PanelView } from './panels/PanelView'
 
 interface Props {
   answer: AskRecord
@@ -8,6 +8,9 @@ interface Props {
 }
 
 export function AnswerCard({ answer, onFollowUp, disabled = false }: Props) {
+  const kpis = answer.panels.filter((p) => p.type === 'kpi')
+  const others = answer.panels.filter((p) => p.type !== 'kpi')
+
   return (
     <article className="answer card">
       <header>
@@ -25,9 +28,21 @@ export function AnswerCard({ answer, onFollowUp, disabled = false }: Props) {
         </ul>
       )}
 
-      {answer.panels.map((panel) => (
-        <TableView key={panel.id} panel={panel} />
-      ))}
+      {kpis.length > 0 && (
+        <section aria-label="Key figures" className="dashboard__kpis">
+          {kpis.map((panel) => (
+            <PanelView key={panel.id} panel={panel} currency={answer.currency} />
+          ))}
+        </section>
+      )}
+
+      {others.length > 0 && (
+        <div className="dashboard__grid">
+          {others.map((panel) => (
+            <PanelView key={panel.id} panel={panel} currency={answer.currency} />
+          ))}
+        </div>
+      )}
 
       {answer.failed_steps.length > 0 && (
         <div className="notice notice--warn">

@@ -82,14 +82,26 @@ export interface ConfirmRequest {
 export type ColumnKind = 'number' | 'text' | 'boolean' | 'date' | 'timestamp'
 export type CellValue = string | number | boolean | null
 
-export interface TablePanel {
+export type PanelType = 'kpi' | 'bar' | 'line' | 'pie' | 'stacked_bar' | 'scatter' | 'table'
+export type ValueFormat = 'number' | 'integer' | 'currency' | 'percent'
+
+export interface Encoding {
+  x: string | null
+  y: string[]
+  series: string | null
+}
+
+export interface Panel {
   id: string
-  type: 'table'
+  type: PanelType
   title: string
   sql: string
   columns: { name: string; type: ColumnKind }[]
   rows: CellValue[][]
   truncated: boolean
+  encoding: Encoding
+  alternatives: PanelType[]
+  formats: Record<string, ValueFormat>
 }
 
 export interface FailedStep {
@@ -104,8 +116,9 @@ export interface AskRecord {
   question: string
   title: string
   summary: string[]
-  panels: TablePanel[]
+  panels: Panel[]
   follow_ups: string[]
   failed_steps: FailedStep[]
+  currency: string | null
   error: string | null
 }

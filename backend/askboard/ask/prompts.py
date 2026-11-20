@@ -33,10 +33,24 @@ class CorrectionOutput(BaseModel):
     explanation: str = Field(default="", description="One sentence on what was fixed")
 
 
+class PanelStyle(BaseModel):
+    id: str = Field(description="Panel id from the results (p1, p2, ...)")
+    chart: str | None = Field(default=None, description="Optional: one of that panel's alternatives, only if clearly better")
+    title: str | None = Field(default=None, description="Optional short panel title in the question's language")
+    formats: dict[str, str] = Field(
+        default_factory=dict,
+        description="Optional: numeric column -> number | integer | currency | percent (percent = values in 0..100)",
+    )
+
+
 class NarrativeOutput(BaseModel):
     title: str = Field(description="Short dashboard title (max 8 words) in the question's language")
     summary: list[str] = Field(description="2-4 short insight bullets with concrete numbers")
     follow_ups: list[str] = Field(description="2-3 follow-up questions in the question's language")
+    panels: list[PanelStyle] = Field(default_factory=list, description="Optional per-panel presentation tweaks")
+    currency: str | None = Field(
+        default=None, description="ISO 4217 code (e.g. BRL, USD) when money values clearly use one currency"
+    )
 
 
 def _system(role: str, rules: list[str], context: str | None = None) -> str:
@@ -101,6 +115,8 @@ def narrative_prompts(question: str, steps: list[dict[str, Any]]) -> tuple[str, 
             "Use the actual numbers from the results; compute shares and differences when useful",
             "Each summary bullet is one short sentence; no SQL, no apologies",
             "If results look truncated, say the analysis covers the rows shown",
+            "Each result is shown as the given 'chart'; change it only to one of its 'alternatives'",
+            "Give each panel a short title; mark money columns as currency and set the currency code if evident",
         ],
     )
     user = json.dumps({"question": question, "results": steps}, ensure_ascii=False, default=str)

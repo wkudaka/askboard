@@ -10,6 +10,19 @@
   --accent: #6d28d9;
   --accent-fg: #ffffff;
 
+  /* Charts: categorical slots in fixed order (validated on #ffffff, see dataviz skill) */
+  --chart-surface: #ffffff;
+  --chart-grid: #e8e7ec;
+  --chart-hover: rgba(15, 13, 22, 0.05);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --series-8: #e34948;
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
 
   font: 16px/1.5 var(--sans);
@@ -31,6 +44,19 @@
     --err: #f87171;
     --accent: #a78bfa;
     --accent-fg: #16171d;
+
+    /* dark steps of the same hues, validated on #16171d */
+    --chart-surface: #16171d;
+    --chart-grid: #2a2c35;
+    --chart-hover: rgba(255, 255, 255, 0.06);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #0ca30c;
+    --series-7: #9085e9;
+    --series-8: #e66767;
   }
 }
 
@@ -385,13 +411,25 @@ button:disabled {
 }
 
 .panel {
-  margin: 0;
   display: grid;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--chart-surface);
+}
+
+.panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .panel__title {
+  margin: 0;
   font-weight: 600;
   color: var(--text-h);
   font-size: 0.9375rem;
@@ -400,9 +438,6 @@ button:disabled {
 .panel .table-scroll {
   max-height: 420px;
   overflow: auto;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
 }
 
 .panel__sql summary {
@@ -425,4 +460,174 @@ button:disabled {
   .ask__form {
     flex-direction: column;
   }
+}
+
+/* --- dashboard ------------------------------------------------------------ */
+
+.dashboard__kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 12px;
+}
+
+.dashboard__grid .panel--table {
+  grid-column: 1 / -1;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.segmented button {
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--chart-surface);
+  color: var(--text-h);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.chart {
+  min-width: 0;
+}
+
+.chart svg:focus {
+  outline: none;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend__key {
+  display: inline-block;
+  flex: none;
+}
+
+.legend__key--rect {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.legend__key--line {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.legend__value {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.pie {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.pie .legend {
+  flex-direction: column;
+}
+
+.pie .legend__value {
+  margin-left: auto;
+  padding-left: 12px;
+}
+
+@media (max-width: 600px) {
+  .pie {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chart-tooltip {
+  min-width: 120px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--chart-surface);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.chart-tooltip__label {
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.chart-tooltip__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-tooltip__row strong {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-tooltip__key {
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  flex: none;
+}
+
+.kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.kpi {
+  margin: 0;
+  min-width: 0;
+}
+
+.kpi__label {
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.kpi__value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
