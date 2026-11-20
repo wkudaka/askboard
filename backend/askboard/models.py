@@ -82,6 +82,7 @@ class ConfirmRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
+    conversation_id: UUID | None = None  # None starts a new conversation
 
     @field_validator("question")
     @classmethod
@@ -139,7 +140,34 @@ class AskResult(BaseModel):
 
 class AskRecord(AskResult):
     id: UUID
+    conversation_id: UUID
     created_at: datetime
+
+
+# --- conversations ----------------------------------------------------------------
+
+class Conversation(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationDetail(Conversation):
+    messages: list[AskRecord]  # oldest first
+
+
+class ConversationUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+    @field_validator("title")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Title must not be blank")
+        return value
 
 
 # --- relationships ----------------------------------------------------------------

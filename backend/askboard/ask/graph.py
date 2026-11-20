@@ -44,6 +44,8 @@ class Runner:  # structural type of QueryRunner, so tests can pass a fake
 
 class AskState(TypedDict, total=False):
     question: str
+    previous_questions: list[str]
+    standalone_question: str
     schema_name: str
     context: str
     allowed_tables: list[str]
@@ -74,9 +76,18 @@ class AskGraph:
         self._max_sub_questions = max_sub_questions
         self._graph = self._build()
 
-    async def answer(self, *, question: str, schema_name: str, context: str, allowed_tables: set[str]) -> AskResult:
+    async def answer(
+        self,
+        *,
+        question: str,
+        schema_name: str,
+        context: str,
+        allowed_tables: set[str],
+        previous_questions: list[str] | None = None,
+    ) -> AskResult:
         state: AskState = await self._graph.ainvoke({
             "question": question,
+            "previous_questions": [q for q in (_sanitize(p) for p in previous_questions or []) if q],
             "schema_name": schema_name,
             "context": context,
             "allowed_tables": sorted(allowed_tables),
@@ -106,13 +117,17 @@ class AskGraph:
         return {"question": question}
 
     async def _plan(self, state: AskState) -> dict:
+        previous = state.get("previous_questions") or []
+        base = state["question"]
         try:
-            plan = await self._llm.generate(*plan_prompts(state["question"], state["context"]), PlanOutput)
+            plan = await self._llm.generate(*plan_prompts(base, state["context"], previous), PlanOutput)
             subs = [q.strip() for q in plan.sub_questions if q.strip()][: self._max_sub_questions]
+            if previous and plan.standalone_question and plan.standalone_question.strip():
+                base = _sanitize(plan.standalone_question)
         except LLMError:
             logger.warning("Planner failed; answering the question as a single step", exc_info=True)
             subs = []
-        return {"sub_questions": subs or [state["question"]], "step": 0}
+        return {"sub_questions": subs or [base], "standalone_question": base, "step": 0}
 
     async def _generate_sql(self, state: AskState) -> dict:
         question = state["sub_questions"][state["step"]]
@@ -184,8 +199,9 @@ class AskGraph:
             }
             for p in state["panels"]
         ]
+        question = state.get("standalone_question") or state["question"]
         try:
-            output = await self._llm.generate(*narrative_prompts(state["question"], steps), NarrativeOutput)
+            output = await self._llm.generate(*narrative_prompts(question, steps), NarrativeOutput)
         except LLMError:
             logger.warning("Narrative failed; returning panels without summary", exc_info=True)
             return {"title": state["question"], "summary": [], "follow_ups": []}

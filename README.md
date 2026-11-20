@@ -61,7 +61,9 @@ python -m askboard.main         # http://localhost:8000
 | POST | `/workspaces/{id}/datasets` | Upload a CSV (multipart `file`): returns the inferred schema + first rows |
 | POST | `/workspaces/{id}/datasets/{ds}/confirm` | Load it, optionally overriding `table_name` and column `name`/`pg_type` |
 | GET | `/workspaces/{id}/datasets[/{ds}]` | List / get datasets with column profiles |
-| POST | `/workspaces/{id}/ask` | Answer `{"question": ...}`: title, summary, table panels (with SQL), follow-ups |
+| POST | `/workspaces/{id}/ask` | Answer `{"question": ..., "conversation_id"?: ...}`: title, summary, panels (with SQL), follow-ups. Without `conversation_id` a new conversation is started |
+| GET | `/workspaces/{id}/conversations[/{conv}]` | List chats (latest activity first) / get one with its messages, oldest first |
+| PATCH, DELETE | `/workspaces/{id}/conversations/{conv}` | Rename (`{"title": ...}`) / delete a chat and its answers |
 | GET | `/workspaces/{id}/questions` | Last 20 answers, newest first |
 | GET | `/workspaces/{id}/relationships` | Detected join keys between the workspace tables |
 | PATCH | `/workspaces/{id}/relationships/{rel}` | `{"status": "confirmed" \| "rejected" \| "suggested"}` |

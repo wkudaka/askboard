@@ -298,3 +298,40 @@ async def test_narrative_prompt_lists_chart_options():
     _, user = llm.calls_for(NarrativeOutput)[0]
     assert '"chart": "pie"' in user
     assert '"alternatives": ["bar", "table"]' in user
+
+
+# --- conversations ---------------------------------------------------------------------
+
+async def test_follow_up_is_rewritten_with_the_previous_questions():
+    llm = ScriptedLLM({
+        PlanOutput: [PlanOutput(standalone_question="Revenue by customer per month?", sub_questions=[])],
+        SQLOutput: [SQLOutput(sql=SQL_OK)],
+        NarrativeOutput: [NARRATIVE],
+    })
+    graph = AskGraph(llm, FakeRunner(), max_correction_attempts=0)
+
+    result = await graph.answer(
+        question="And per month?", schema_name="ws_abc", context=CONTEXT, allowed_tables=TABLES,
+        previous_questions=["Revenue by customer?"],
+    )
+
+    plan_system, plan_user = llm.calls_for(PlanOutput)[0]
+    assert "standalone_question" in plan_system
+    assert plan_user.startswith("<previous_questions>\n- Revenue by customer?\n</previous_questions>")
+    assert "Revenue by customer per month?" in llm.calls_for(SQLOutput)[0][1]
+    assert "Revenue by customer per month?" in llm.calls_for(NarrativeOutput)[0][1]
+    assert result.question == "And per month?"  # the user's own words are kept
+
+
+async def test_without_previous_questions_the_rewrite_is_ignored():
+    llm = ScriptedLLM({
+        PlanOutput: [PlanOutput(standalone_question="Something else", sub_questions=[])],
+        SQLOutput: [SQLOutput(sql=SQL_OK)],
+        NarrativeOutput: [NARRATIVE],
+    })
+
+    await ask(llm)
+
+    _, plan_user = llm.calls_for(PlanOutput)[0]
+    assert "previous_questions" not in plan_user
+    assert "Revenue by customer?" in llm.calls_for(SQLOutput)[0][1]

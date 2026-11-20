@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from askboard.ask.llm import LLMNotConfiguredError
@@ -8,6 +8,9 @@ from askboard.models import (
     AskRecord,
     AskRequest,
     ConfirmRequest,
+    Conversation,
+    ConversationDetail,
+    ConversationUpdate,
     Dataset,
     DatasetPreview,
     Relationship,
@@ -16,6 +19,7 @@ from askboard.models import (
     WorkspaceCreate,
 )
 from askboard.services.ask import AskService
+from askboard.services.conversations import ConversationService
 from askboard.services.datasets import DatasetService
 from askboard.services.errors import ConflictError, InvalidInputError, NotFoundError, ServiceError
 from askboard.services.relationships import RelationshipService
@@ -40,6 +44,10 @@ def get_ask(request: Request) -> AskService:
 
 def get_relationships(request: Request) -> RelationshipService:
     return request.app.state.relationships
+
+
+def get_conversations(request: Request) -> ConversationService:
+    return request.app.state.conversations
 
 
 async def read_limited(file: UploadFile, max_bytes: int) -> bytes:
@@ -137,12 +145,51 @@ async def update_relationship(
 
 @router.post("/workspaces/{workspace_id}/ask", response_model=AskRecord)
 async def ask(workspace_id: UUID, body: AskRequest, service: AskService = Depends(get_ask)):
-    return await service.ask(workspace_id, body.question)
+    return await service.ask(workspace_id, body.question, body.conversation_id)
 
 
 @router.get("/workspaces/{workspace_id}/questions", response_model=list[AskRecord])
 async def question_history(workspace_id: UUID, service: AskService = Depends(get_ask)):
     return await service.history(workspace_id)
+
+
+# --- conversations ------------------------------------------------------------------------
+
+@router.get("/workspaces/{workspace_id}/conversations", response_model=list[Conversation])
+async def list_conversations(
+    workspace_id: UUID,
+    workspaces: WorkspaceService = Depends(get_workspaces),
+    conversations: ConversationService = Depends(get_conversations),
+):
+    await workspaces.get(workspace_id)
+    return await conversations.list(workspace_id)
+
+
+@router.get("/workspaces/{workspace_id}/conversations/{conversation_id}", response_model=ConversationDetail)
+async def get_conversation(
+    workspace_id: UUID, conversation_id: UUID, conversations: ConversationService = Depends(get_conversations)
+):
+    return await conversations.detail(workspace_id, conversation_id)
+
+
+@router.patch("/workspaces/{workspace_id}/conversations/{conversation_id}", response_model=Conversation)
+async def rename_conversation(
+    workspace_id: UUID,
+    conversation_id: UUID,
+    body: ConversationUpdate,
+    conversations: ConversationService = Depends(get_conversations),
+):
+    return await conversations.rename(workspace_id, conversation_id, body.title)
+
+
+@router.delete(
+    "/workspaces/{workspace_id}/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_conversation(
+    workspace_id: UUID, conversation_id: UUID, conversations: ConversationService = Depends(get_conversations)
+):
+    await conversations.delete(workspace_id, conversation_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # --- error mapping ---------------------------------------------------------------------------

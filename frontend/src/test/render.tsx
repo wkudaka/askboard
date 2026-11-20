@@ -18,6 +18,10 @@ export function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
     listQuestions: vi.fn().mockResolvedValue([]),
     listRelationships: vi.fn().mockResolvedValue([]),
     updateRelationship: vi.fn(),
+    listConversations: vi.fn().mockResolvedValue([]),
+    getConversation: vi.fn(),
+    renameConversation: vi.fn(),
+    deleteConversation: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }

@@ -1,7 +1,8 @@
-import type { AskRecord, ColumnInfo, Dataset, DatasetPreview, Workspace } from '../api/types'
+import type { AskRecord, ColumnInfo, Conversation, Dataset, DatasetPreview, Workspace } from '../api/types'
 
 export const answer: AskRecord = {
   id: 'q-1',
+  conversation_id: 'c-1',
   created_at: '2026-11-20T11:00:00Z',
   question: 'Quanto cada cliente gastou?',
   title: 'Receita por cliente',
@@ -31,6 +32,14 @@ export const answer: AskRecord = {
   failed_steps: [],
   currency: null,
   error: null,
+}
+
+export const conversation: Conversation = {
+  id: 'c-1',
+  workspace_id: 'ws-1',
+  title: 'Quanto cada cliente gastou?',
+  created_at: '2026-11-20T11:00:00Z',
+  updated_at: '2026-11-20T11:00:00Z',
 }
 
 export const workspace: Workspace = {

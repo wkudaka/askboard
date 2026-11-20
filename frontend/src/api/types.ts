@@ -127,6 +127,7 @@ export interface Relationship {
 
 export interface AskRecord {
   id: string
+  conversation_id: string
   created_at: string
   question: string
   title: string
@@ -136,4 +137,17 @@ export interface AskRecord {
   failed_steps: FailedStep[]
   currency: string | null
   error: string | null
+}
+
+export interface Conversation {
+  id: string
+  workspace_id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ConversationDetail extends Conversation {
+  /** Oldest first. */
+  messages: AskRecord[]
 }

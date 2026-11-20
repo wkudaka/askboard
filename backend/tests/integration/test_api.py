@@ -297,3 +297,44 @@ async def test_unknown_relationship_is_404(client):
 
 async def test_relationships_of_unknown_workspace_is_404(client):
     assert (await client.get(f"/workspaces/{uuid.uuid4()}/relationships")).status_code == 404
+
+
+# --- conversations ---------------------------------------------------------------------------
+
+async def test_conversation_lifecycle(make_client, pedidos_csv):
+    llm = ScriptedLLM({
+        PlanOutput: [PlanOutput(), PlanOutput(standalone_question="Quantos pedidos por mês?")],
+        SQLOutput: [SQLOutput(sql="SELECT count(*) AS pedidos FROM pedidos")] * 2,
+        NarrativeOutput: [NarrativeOutput(title="Pedidos", summary=[], follow_ups=[])] * 2,
+    })
+    async with await make_client(llm) as c:
+        ws = await loaded_workspace(c, pedidos_csv)
+        base = f"/workspaces/{ws['id']}/conversations"
+
+        first = (await c.post(f"/workspaces/{ws['id']}/ask", json={"question": "Quantos pedidos?"})).json()
+        conv_id = first["conversation_id"]
+        second = await c.post(
+            f"/workspaces/{ws['id']}/ask", json={"question": "E por mês?", "conversation_id": conv_id}
+        )
+        listed = (await c.get(base)).json()
+        detail = (await c.get(f"{base}/{conv_id}")).json()
+        renamed = await c.patch(f"{base}/{conv_id}", json={"title": "  Pedidos  "})
+        blank = await c.patch(f"{base}/{conv_id}", json={"title": "  "})
+        deleted = await c.delete(f"{base}/{conv_id}")
+        gone = await c.get(f"{base}/{conv_id}")
+        unknown = await c.post(
+            f"/workspaces/{ws['id']}/ask", json={"question": "Oi?", "conversation_id": str(uuid.uuid4())}
+        )
+
+    assert second.status_code == 200 and second.json()["conversation_id"] == conv_id
+    assert [(x["id"], x["title"]) for x in listed] == [(conv_id, "Quantos pedidos?")]
+    assert [m["question"] for m in detail["messages"]] == ["Quantos pedidos?", "E por mês?"]
+    assert renamed.status_code == 200 and renamed.json()["title"] == "Pedidos"
+    assert blank.status_code == 422
+    assert deleted.status_code == 204
+    assert gone.status_code == 404
+    assert unknown.status_code == 404
+
+
+async def test_conversations_of_unknown_workspace_is_404(client):
+    assert (await client.get(f"/workspaces/{uuid.uuid4()}/conversations")).status_code == 404

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useApi } from '../api/ApiProvider'
+import { PlusIcon } from './icons'
 
 interface Props {
   value: string | null
@@ -11,12 +12,14 @@ export function WorkspacePicker({ value, onChange }: Props) {
   const api = useApi()
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
+  const [creating, setCreating] = useState(false)
 
   const workspaces = useQuery({ queryKey: ['workspaces'], queryFn: () => api.listWorkspaces() })
   const create = useMutation({
     mutationFn: (workspaceName: string) => api.createWorkspace(workspaceName),
     onSuccess: async (created) => {
       setName('')
+      setCreating(false)
       await queryClient.invalidateQueries({ queryKey: ['workspaces'] })
       onChange(created.id)
     },
@@ -32,41 +35,51 @@ export function WorkspacePicker({ value, onChange }: Props) {
     if (name.trim()) create.mutate(name.trim())
   }
 
-  if (workspaces.isPending) return <p className="muted">Loading workspaces…</p>
-  if (workspaces.isError) return <p role="alert">{workspaces.error.message}</p>
+  if (workspaces.isPending) return <p className="sidebar__note">Loading workspaces…</p>
+  if (workspaces.isError) return <p role="alert" className="sidebar__note">{workspaces.error.message}</p>
 
   const list = workspaces.data
+  const showForm = list.length === 0 || creating
 
   return (
     <div className="workspace-picker">
       {list.length > 0 && (
-        <label className="field">
-          <span>Workspace</span>
-          <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
+        <div className="workspace-picker__row">
+          <select aria-label="Workspace" value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
             {list.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name}
               </option>
             ))}
           </select>
-        </label>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="New workspace"
+            title="New workspace"
+            aria-expanded={creating}
+            onClick={() => setCreating((c) => !c)}
+          >
+            <PlusIcon />
+          </button>
+        </div>
       )}
-      <form className="workspace-picker__create" onSubmit={submit}>
-        {list.length === 0 && <p>Create your first workspace to start uploading data.</p>}
-        <label className="field">
-          <span>{list.length === 0 ? 'Workspace name' : 'New workspace'}</span>
+      {showForm && (
+        <form className="workspace-picker__create" onSubmit={submit}>
+          {list.length === 0 && <p>Create your first workspace to start uploading data.</p>}
           <input
             aria-label="Workspace name"
             value={name}
+            autoFocus={creating}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Sales 2024"
           />
-        </label>
-        <button type="submit" disabled={!name.trim() || create.isPending}>
-          Create
-        </button>
-        {create.isError && <p role="alert">{create.error.message}</p>}
-      </form>
+          <button type="submit" disabled={!name.trim() || create.isPending}>
+            Create
+          </button>
+          {create.isError && <p role="alert">{create.error.message}</p>}
+        </form>
+      )}
     </div>
   )
 }

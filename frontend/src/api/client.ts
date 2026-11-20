@@ -1,6 +1,8 @@
 import type {
   AskRecord,
   ConfirmRequest,
+  Conversation,
+  ConversationDetail,
   Dataset,
   DatasetPreview,
   Relationship,
@@ -29,10 +31,15 @@ export interface ApiClient {
   listDatasets(workspaceId: string): Promise<Dataset[]>
   uploadDataset(workspaceId: string, file: File): Promise<DatasetPreview>
   confirmDataset(workspaceId: string, datasetId: string, body: ConfirmRequest): Promise<Dataset>
-  ask(workspaceId: string, question: string): Promise<AskRecord>
+  /** Without a conversationId the backend starts a new conversation. */
+  ask(workspaceId: string, question: string, conversationId?: string | null): Promise<AskRecord>
   listQuestions(workspaceId: string): Promise<AskRecord[]>
   listRelationships(workspaceId: string): Promise<Relationship[]>
   updateRelationship(workspaceId: string, relationshipId: string, status: RelationshipStatus): Promise<Relationship>
+  listConversations(workspaceId: string): Promise<Conversation[]>
+  getConversation(workspaceId: string, conversationId: string): Promise<ConversationDetail>
+  renameConversation(workspaceId: string, conversationId: string, title: string): Promise<Conversation>
+  deleteConversation(workspaceId: string, conversationId: string): Promise<void>
 }
 
 export interface ApiClientOptions {
@@ -83,6 +90,7 @@ export function createApiClient({ baseUrl, fetch: fetchImpl = fetch }: ApiClient
     if (!response.ok) {
       throw new ApiError(response.status, await errorMessage(response))
     }
+    if (response.status === 204) return undefined as T
     return (await response.json()) as T
   }
 
@@ -107,7 +115,11 @@ export function createApiClient({ baseUrl, fetch: fetchImpl = fetch }: ApiClient
     },
     confirmDataset: (workspaceId, datasetId, body) =>
       postJson(`/workspaces/${seg(workspaceId)}/datasets/${seg(datasetId)}/confirm`, body),
-    ask: (workspaceId, question) => postJson(`/workspaces/${seg(workspaceId)}/ask`, { question }),
+    ask: (workspaceId, question, conversationId) =>
+      postJson(`/workspaces/${seg(workspaceId)}/ask`, {
+        question,
+        ...(conversationId ? { conversation_id: conversationId } : {}),
+      }),
     listQuestions: (workspaceId) => request(`/workspaces/${seg(workspaceId)}/questions`),
     listRelationships: (workspaceId) => request(`/workspaces/${seg(workspaceId)}/relationships`),
     updateRelationship: (workspaceId, relationshipId, status) =>
@@ -116,5 +128,16 @@ export function createApiClient({ baseUrl, fetch: fetchImpl = fetch }: ApiClient
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       }),
+    listConversations: (workspaceId) => request(`/workspaces/${seg(workspaceId)}/conversations`),
+    getConversation: (workspaceId, conversationId) =>
+      request(`/workspaces/${seg(workspaceId)}/conversations/${seg(conversationId)}`),
+    renameConversation: (workspaceId, conversationId, title) =>
+      request(`/workspaces/${seg(workspaceId)}/conversations/${seg(conversationId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      }),
+    deleteConversation: (workspaceId, conversationId) =>
+      request(`/workspaces/${seg(workspaceId)}/conversations/${seg(conversationId)}`, { method: 'DELETE' }),
   }
 }
