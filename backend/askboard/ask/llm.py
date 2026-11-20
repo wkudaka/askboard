@@ -1,7 +1,7 @@
 """LLM access: one method, `generate(system, user, schema) -> schema instance`.
 
-Ported from sales-analytics-agent-wk's LLMService. Structured output (tool calling) is
-tried first; models without it get the JSON schema in the prompt and we parse the reply.
+Structured output (tool calling) is tried first; models without it get the JSON schema in the
+prompt and we parse the reply.
 """
 
 import asyncio

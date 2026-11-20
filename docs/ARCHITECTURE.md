@@ -3,9 +3,6 @@
 > Upload CSVs → load them into PostgreSQL → ask questions in natural language → get a dashboard
 > assembled on the fly (KPIs, bar/line/pie charts, tables + a written summary).
 
-Evolution of `../sales-analytics-agent-wk` (LangGraph NL→SQL over SQLite, prose answers).
-Askboard is a new project; it reuses that project's graph design, LLM factory and SQL guardrails.
-
 ## Decisions
 
 | Topic | Decision |
@@ -13,7 +10,7 @@ Askboard is a new project; it reuses that project's graph design, LLM factory an
 | Layout | Monorepo: `backend/` (Python) + `frontend/` (TS) + `docker-compose.yml` |
 | Backend | FastAPI + LangGraph, psycopg 3 (async pool), sqlglot for SQL validation |
 | Database | PostgreSQL 16 (docker compose) |
-| LLM | Reuse `llm_factory` (OpenRouter / Bedrock) |
+| LLM | `llm_factory` (OpenRouter / Bedrock) |
 | Frontend | React + Vite + TypeScript, Recharts, TanStack Query, Tailwind |
 | Datasets | **Workspace** = group of related CSVs; each CSV = one table; JOINs allowed between them |
 | Viz choice | **Hybrid**: deterministic rules on result shape pick the chart; LLM writes title/summary and resolves ambiguous cases |
@@ -69,7 +66,7 @@ Limits for the MVP: 50 MB per file, synchronous ingestion. A background job come
 
 ## Ask graph (`backend/askboard/graph/`)
 
-Reuse the shape of `sales-analytics-agent-wk/src/graph/graph.py`, plus two new nodes:
+A LangGraph pipeline:
 
 ```
 extract_question → load_context → query_planner → sql_generator → sql_executor
@@ -79,13 +76,13 @@ extract_question → load_context → query_planner → sql_generator → sql_ex
 sql_executor → viz_planner → narrative → END
 ```
 
-- **extract_question**: reused as is (sanitization, length limit).
-- **load_context** (new): builds the LLM context from metadata (tables, columns with semantic type and sample values, confirmed relationships). It replaces the hard-coded `SALES_CONTEXT` and the SQLite DDL.
-- **query_planner / sql_generator / sql_correction**: reused. Prompts switch to the Postgres dialect and the dynamic context. Multi-step sub-questions become multiple dashboard panels.
-- **sql_executor**: reused logic, but runs on Postgres with these guardrails:
+- **extract_question**: sanitization, length limit.
+- **load_context**: builds the LLM context from metadata (tables, columns with semantic type and sample values, confirmed relationships).
+- **query_planner / sql_generator / sql_correction**: Postgres dialect prompts over the dynamic context. Multi-step sub-questions become multiple dashboard panels.
+- **sql_executor**: runs on Postgres with these guardrails:
   - parse with `sqlglot` (dialect postgres): a single statement, `SELECT`/`WITH` only, and every referenced table must belong to the workspace schema;
   - runs as the `askboard_reader` role (USAGE/SELECT on `ws_*` only, no access to `askboard`), in a `READ ONLY` transaction with `SET LOCAL search_path = ws_<id>` and `SET LOCAL statement_timeout = '10s'`;
-  - a wrapping `LIMIT` (as in `_enforce_result_limit`).
+  - a wrapping `LIMIT`.
 - **viz_planner** (new, hybrid):
   1. **Profile the result**: classify each column as temporal / categorical / numeric from the Postgres type, the metadata and the values.
   2. **Rules** pick the default panel:
@@ -156,7 +153,7 @@ askboard/
       config.py  logging_config.py  runtime.py  server.py  main.py
       db/          database.py, migrations/ (NNN_name.sql + discovery)
       ingestion/   sniff.py, infer_types.py, loader.py, profile.py, relationships.py
-      graph/       graph.py, state.py, nodes/ (reused + load_context, viz_planner, narrative)
+      graph/       graph.py, state.py, nodes/ (incl. load_context, viz_planner, narrative)
       viz/         result_profile.py, rules.py, spec.py (Pydantic Dashboard/Panel)
       prompts/v1/
       services/    llm_factory.py (copied), postgres_service.py, sql_guard.py (sqlglot)

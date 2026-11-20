@@ -1,7 +1,7 @@
 """Prompts and structured-output schemas for the ask graph (v1).
 
-Adapted from sales-analytics-agent-wk: PostgreSQL dialect, schema described from the
-ingestion profiles instead of hard-coded DDL, same prompt-injection hardening.
+PostgreSQL dialect; the schema is described from the ingestion profiles, and every prompt
+carries the same prompt-injection hardening.
 """
 
 import json
