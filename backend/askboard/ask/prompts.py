@@ -35,7 +35,8 @@ class CorrectionOutput(BaseModel):
 
 class PanelStyle(BaseModel):
     id: str = Field(description="Panel id from the results (p1, p2, ...)")
-    chart: str | None = Field(default=None, description="Optional: one of that panel's alternatives, only if clearly better")
+    chart: str | None = Field(default=None, description="Leave empty to keep the chart; set only when the user asked for a chart type that is "
+        "one of that panel's alternatives")
     title: str | None = Field(default=None, description="Optional short panel title in the question's language")
     formats: dict[str, str] = Field(
         default_factory=dict,
@@ -72,6 +73,8 @@ def plan_prompts(question: str, context: str) -> tuple[str, str]:
         "Analytics question planner", [
             "Decide whether ONE SQL query answers the question; if so return an empty sub_questions list",
             "Only split when the question compares or combines things that need separate result sets",
+            "A breakdown 'by/per/por X' (by category, per month, por estado) is ONE grouped query: "
+            "never split it into one sub-question per value of X",
             "Return at most 3 sub-questions, each answerable by one query, in the question's language",
         ], context,
     )
@@ -85,6 +88,9 @@ def sql_prompts(question: str, context: str) -> tuple[str, str]:
             "Use only the tables and columns listed under Tables; reference tables without schema prefix",
             "Alias every computed column with a short snake_case name",
             "Join tables only on the pairs listed under Relationships; prefer confirmed ones",
+            "For a breakdown 'by/per/por X' select X plus the metric and GROUP BY X; never filter to "
+            "individual values of X",
+            "'How many items/units sold' means SUM of a quantity column when one exists, not COUNT of rows",
             "Round money and ratios with round(x::numeric, 2)",
             "For time series use date_trunc('month', col) (or day/week/year) and order by it",
             "For rankings ORDER BY the metric DESC and LIMIT 20 unless the user asks otherwise",
@@ -116,7 +122,8 @@ def narrative_prompts(question: str, steps: list[dict[str, Any]]) -> tuple[str, 
             "Use the actual numbers from the results; compute shares and differences when useful",
             "Each summary bullet is one short sentence; no SQL, no apologies",
             "If results look truncated, say the analysis covers the rows shown",
-            "Each result is shown as the given 'chart'; change it only to one of its 'alternatives'",
+            "Each result is shown as the given 'chart'; keep it (leave 'chart' empty) unless the question "
+            "explicitly asks for another chart type, and then only pick one of its 'alternatives'",
             "Give each panel a short title; mark money columns as currency and set the currency code if evident",
         ],
     )
