@@ -105,6 +105,45 @@ describe('DatasetUpload', () => {
     expect(screen.getByRole('heading', { name: 'Review pedidos.csv' })).toBeInTheDocument()
   })
 
+  it('reviews several files one after the other', async () => {
+    const second = new File(['id;nome\n1;Ana\n'], 'clientes.csv', { type: 'text/csv' })
+    const api = fakeApi({
+      uploadDataset: vi
+        .fn()
+        .mockResolvedValueOnce(preview)
+        .mockResolvedValueOnce({ ...preview, id: 'ds-2', original_filename: 'clientes.csv', table_name: 'clientes' }),
+      confirmDataset: vi.fn().mockResolvedValue(loaded),
+    })
+    renderWithApi(<DatasetUpload workspaceId="ws-1" />, api)
+
+    await userEvent.upload(screen.getByLabelText('CSV file'), [csv, second])
+
+    expect(await screen.findByRole('heading', { name: 'Review pedidos.csv' })).toBeInTheDocument()
+    expect(screen.getByText('1 more file waiting')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Import 5 rows' }))
+
+    expect(await screen.findByRole('heading', { name: 'Review clientes.csv' })).toBeInTheDocument()
+    expect(api.uploadDataset).toHaveBeenNthCalledWith(2, 'ws-1', second)
+    expect(screen.getByText(/Loaded 4 rows into/)).toBeInTheDocument()
+  })
+
+  it('skips to the next file when a review is cancelled', async () => {
+    const second = new File(['id;nome\n1;Ana\n'], 'clientes.csv', { type: 'text/csv' })
+    const api = fakeApi({
+      uploadDataset: vi
+        .fn()
+        .mockResolvedValueOnce(preview)
+        .mockResolvedValueOnce({ ...preview, id: 'ds-2', original_filename: 'clientes.csv' }),
+    })
+    renderWithApi(<DatasetUpload workspaceId="ws-1" />, api)
+
+    await userEvent.upload(screen.getByLabelText('CSV file'), [csv, second])
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+
+    expect(await screen.findByRole('heading', { name: 'Review clientes.csv' })).toBeInTheDocument()
+  })
+
   it('can cancel the review', async () => {
     await uploadFile()
 

@@ -3,6 +3,7 @@ import { ApiStatus } from './components/ApiStatus'
 import { AskPanel } from './components/AskPanel'
 import { DatasetList } from './components/DatasetList'
 import { DatasetUpload } from './components/DatasetUpload'
+import { RelationshipList } from './components/RelationshipList'
 import { WorkspacePicker } from './components/WorkspacePicker'
 
 export default function App() {
@@ -32,6 +33,8 @@ export default function App() {
             <section className="card">
               <h2>Datasets</h2>
               <DatasetList workspaceId={workspaceId} />
+              <h2 className="card__subheading">Relationships</h2>
+              <RelationshipList workspaceId={workspaceId} />
             </section>
           </>
         )}

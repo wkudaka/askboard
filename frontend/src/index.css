@@ -631,3 +631,64 @@ button:disabled {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+
+/* --- relationships ---------------------------------------------------------- */
+
+.card__subheading {
+  margin-top: 24px !important;
+}
+
+.relationships {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relationship {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.relationship code {
+  color: var(--text-h);
+}
+
+.relationship--rejected code {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.relationship__actions {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.relationship__actions button {
+  min-height: 30px;
+  padding: 2px 12px;
+  font-size: 0.8125rem;
+}
+
+.badge--suggested {
+  color: var(--warn);
+  border-color: currentColor;
+}
+
+.badge--confirmed {
+  color: var(--ok);
+  border-color: currentColor;
+}
+
+.badge--rejected {
+  color: var(--err);
+  border-color: currentColor;
+}

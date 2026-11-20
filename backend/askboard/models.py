@@ -140,3 +140,25 @@ class AskResult(BaseModel):
 class AskRecord(AskResult):
     id: UUID
     created_at: datetime
+
+
+# --- relationships ----------------------------------------------------------------
+
+RelationshipStatus = Literal["suggested", "confirmed", "rejected"]
+
+
+class Relationship(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    from_dataset_id: UUID
+    from_table: str
+    from_column: str
+    to_dataset_id: UUID
+    to_table: str
+    to_column: str
+    confidence: float
+    status: RelationshipStatus
+
+
+class RelationshipUpdate(BaseModel):
+    status: RelationshipStatus

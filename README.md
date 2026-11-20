@@ -4,10 +4,11 @@ Upload CSVs, ask questions in plain language, get a dashboard built on the fly.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design and the roadmap.
 
-**Status:** phase 4 (dashboards). Natural-language questions are answered by a LangGraph
+**Status:** phase 5 (related CSVs) — all phases of the architecture plan are implemented. Natural-language questions are answered by a LangGraph
 pipeline (plan → SQL → guard → run → auto-correct → summary) and rendered as a dashboard: KPIs,
 line/bar/pie/stacked-bar/scatter charts or tables, chosen from the shape of each result, with a
-written summary and follow-up questions. Next: phase 5 (several related CSVs per workspace).
+written summary and follow-up questions. Several CSVs can be uploaded together; Askboard detects
+how they join (e.g. `pedidos.cliente_id → clientes.id`) and the LLM uses those relationships.
 
 Questions need an LLM: set `OPENROUTER_API_KEY` in `backend/.env` (local run) or in a `.env` next to
 `docker-compose.yml` (Docker). Everything else works without it.
@@ -62,6 +63,17 @@ python -m askboard.main         # http://localhost:8000
 | GET | `/workspaces/{id}/datasets[/{ds}]` | List / get datasets with column profiles |
 | POST | `/workspaces/{id}/ask` | Answer `{"question": ...}`: title, summary, table panels (with SQL), follow-ups |
 | GET | `/workspaces/{id}/questions` | Last 20 answers, newest first |
+| GET | `/workspaces/{id}/relationships` | Detected join keys between the workspace tables |
+| PATCH | `/workspaces/{id}/relationships/{rel}` | `{"status": "confirmed" \| "rejected" \| "suggested"}` |
+
+### How relationships are detected
+
+After each table is loaded, `askboard/ingestion/relationships.py` proposes candidates **by name**
+against a **unique** column of a compatible type in another table (`cliente_id`, `id_cliente`,
+`cliente` → `clientes.id`; `customer_id` on both sides; prefixed tables such as `loja_clientes`
+match on their last word). Each candidate is then **checked against the data**: it is suggested only
+when ≥ 90% of the distinct source values exist in the target. Confirmed and suggested (not rejected)
+relationships are given to the LLM as the only allowed JOINs; user decisions survive new uploads.
 
 ### How questions are answered
 

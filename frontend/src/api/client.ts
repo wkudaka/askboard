@@ -1,4 +1,12 @@
-import type { AskRecord, ConfirmRequest, Dataset, DatasetPreview, Workspace } from './types'
+import type {
+  AskRecord,
+  ConfirmRequest,
+  Dataset,
+  DatasetPreview,
+  Relationship,
+  RelationshipStatus,
+  Workspace,
+} from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -23,6 +31,8 @@ export interface ApiClient {
   confirmDataset(workspaceId: string, datasetId: string, body: ConfirmRequest): Promise<Dataset>
   ask(workspaceId: string, question: string): Promise<AskRecord>
   listQuestions(workspaceId: string): Promise<AskRecord[]>
+  listRelationships(workspaceId: string): Promise<Relationship[]>
+  updateRelationship(workspaceId: string, relationshipId: string, status: RelationshipStatus): Promise<Relationship>
 }
 
 export interface ApiClientOptions {
@@ -99,5 +109,12 @@ export function createApiClient({ baseUrl, fetch: fetchImpl = fetch }: ApiClient
       postJson(`/workspaces/${seg(workspaceId)}/datasets/${seg(datasetId)}/confirm`, body),
     ask: (workspaceId, question) => postJson(`/workspaces/${seg(workspaceId)}/ask`, { question }),
     listQuestions: (workspaceId) => request(`/workspaces/${seg(workspaceId)}/questions`),
+    listRelationships: (workspaceId) => request(`/workspaces/${seg(workspaceId)}/relationships`),
+    updateRelationship: (workspaceId, relationshipId, status) =>
+      request(`/workspaces/${seg(workspaceId)}/relationships/${seg(relationshipId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      }),
   }
 }

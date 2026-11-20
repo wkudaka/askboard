@@ -3,7 +3,7 @@
 import json
 
 from askboard.ingestion.types import NUMBER_TYPES, TEMPORAL_TYPES, PgType
-from askboard.models import ColumnInfo, Dataset
+from askboard.models import ColumnInfo, Dataset, Relationship
 
 MAX_SAMPLE_CHARS = 40
 
@@ -41,9 +41,17 @@ def _describe_column(c: ColumnInfo) -> str:
     return line
 
 
-def build_schema_context(datasets: list[Dataset]) -> str:
+def _describe_relationship(r: Relationship) -> str:
+    status = "confirmed" if r.status == "confirmed" else f"likely, {round(r.confidence * 100)}% of values match"
+    return f"  - {r.from_table}.{r.from_column} = {r.to_table}.{r.to_column} ({status})"
+
+
+def build_schema_context(datasets: list[Dataset], relationships: list[Relationship] | None = None) -> str:
     blocks = []
     for d in _loaded(datasets):
         header = f'Table {d.table_name} ({d.row_count} rows, from "{d.original_filename}")'
         blocks.append("\n".join([header, *(_describe_column(c) for c in d.columns)]))
+    usable = [r for r in relationships or [] if r.status != "rejected"]
+    if blocks and usable:
+        blocks.append("\n".join(["Relationships (join on these):", *(_describe_relationship(r) for r in usable)]))
     return "\n\n".join(blocks)

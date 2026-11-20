@@ -32,6 +32,7 @@ from askboard.models import (
     SourceFormat,
 )
 from askboard.services.errors import ConflictError, InvalidInputError, NotFoundError
+from askboard.services.relationships import RelationshipService
 from askboard.services.workspaces import WorkspaceService
 
 PREVIEW_ROWS = 20
@@ -168,6 +169,8 @@ class DatasetService:
             )
             await conn.execute("DELETE FROM askboard.dataset_sources WHERE dataset_id = %s", (dataset_id,))
 
+        # A new table may share join keys with the others.
+        await RelationshipService(self._db).refresh(workspace_id, workspace.schema_name, await self.list(workspace_id))
         return await self.get(workspace_id, dataset_id)
 
     def _apply_overrides(

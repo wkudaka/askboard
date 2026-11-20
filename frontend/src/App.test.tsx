@@ -43,6 +43,14 @@ describe('App', () => {
     expect(await screen.findByText('No datasets yet. Upload a CSV to get started.')).toBeInTheDocument()
   })
 
+  it('shows detected relationships once a workspace is selected', async () => {
+    const api = fakeApi({ listWorkspaces: vi.fn().mockResolvedValue([workspace]) })
+    renderWithApi(<App />, api)
+
+    expect(await screen.findByRole('heading', { name: 'Relationships' })).toBeInTheDocument()
+    expect(await screen.findByText(/No relationships detected yet/)).toBeInTheDocument()
+  })
+
   it('shows the question box once a workspace is selected', async () => {
     const api = fakeApi({ listWorkspaces: vi.fn().mockResolvedValue([workspace]) })
     renderWithApi(<App />, api)

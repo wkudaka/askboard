@@ -253,3 +253,47 @@ async def test_ask_unknown_workspace_is_404(make_client):
         response = await c.post(f"/workspaces/{uuid.uuid4()}/ask", json={"question": "Oi?"})
 
     assert response.status_code == 404
+
+
+# --- relationships -------------------------------------------------------------------------
+
+from tests.integration.conftest import FIXTURES  # noqa: E402
+
+
+async def upload_and_confirm(c, ws_id, filename, fixture_name):
+    ds = (await upload(c, ws_id, (FIXTURES / fixture_name).read_bytes(), filename=filename)).json()
+    response = await c.post(f"/workspaces/{ws_id}/datasets/{ds['id']}/confirm", json={})
+    assert response.status_code == 200, response.text
+
+
+async def test_relationships_are_listed_and_can_be_confirmed(client):
+    ws = await create_workspace(client)
+    await upload_and_confirm(client, ws["id"], "clientes.csv", "loja_clientes.csv")
+    await upload_and_confirm(client, ws["id"], "pedidos.csv", "loja_pedidos.csv")
+
+    listed = (await client.get(f"/workspaces/{ws['id']}/relationships")).json()
+    [rel] = listed
+    response = await client.patch(f"/workspaces/{ws['id']}/relationships/{rel['id']}", json={"status": "confirmed"})
+
+    assert (rel["from_table"], rel["from_column"], rel["to_table"], rel["to_column"]) == (
+        "pedidos", "cliente_id", "clientes", "id",
+    )
+    assert rel["status"] == "suggested"
+    assert response.status_code == 200
+    assert response.json()["status"] == "confirmed"
+
+
+async def test_invalid_relationship_status_is_422(client):
+    ws = await create_workspace(client)
+    response = await client.patch(f"/workspaces/{ws['id']}/relationships/{uuid.uuid4()}", json={"status": "maybe"})
+    assert response.status_code == 422
+
+
+async def test_unknown_relationship_is_404(client):
+    ws = await create_workspace(client)
+    response = await client.patch(f"/workspaces/{ws['id']}/relationships/{uuid.uuid4()}", json={"status": "rejected"})
+    assert response.status_code == 404
+
+
+async def test_relationships_of_unknown_workspace_is_404(client):
+    assert (await client.get(f"/workspaces/{uuid.uuid4()}/relationships")).status_code == 404

@@ -84,6 +84,7 @@ def sql_prompts(question: str, context: str) -> tuple[str, str]:
             "Write ONE PostgreSQL SELECT (CTEs with WITH allowed); never write DML or DDL",
             "Use only the tables and columns listed under Tables; reference tables without schema prefix",
             "Alias every computed column with a short snake_case name",
+            "Join tables only on the pairs listed under Relationships; prefer confirmed ones",
             "Round money and ratios with round(x::numeric, 2)",
             "For time series use date_trunc('month', col) (or day/week/year) and order by it",
             "For rankings ORDER BY the metric DESC and LIMIT 20 unless the user asks otherwise",

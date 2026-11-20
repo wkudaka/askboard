@@ -12,6 +12,7 @@ from askboard.ask.llm import LLMError, StructuredLLM
 from askboard.db.database import Database
 from askboard.models import AskRecord, AskResult
 from askboard.services.datasets import DatasetService
+from askboard.services.relationships import RelationshipService
 from askboard.services.workspaces import WorkspaceService
 
 HISTORY_LIMIT = 20
@@ -53,7 +54,8 @@ class AskService:
     async def ask(self, workspace_id: uuid.UUID, question: str) -> AskRecord:
         workspace = await self._workspaces.get(workspace_id)
         datasets = await self._datasets.list(workspace_id)
-        context = build_schema_context(datasets)
+        relationships = await RelationshipService(self._db).list(workspace_id)
+        context = build_schema_context(datasets, relationships)
 
         graph = (
             self._graph_for_questions() if context

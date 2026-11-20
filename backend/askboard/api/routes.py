@@ -10,12 +10,15 @@ from askboard.models import (
     ConfirmRequest,
     Dataset,
     DatasetPreview,
+    Relationship,
+    RelationshipUpdate,
     Workspace,
     WorkspaceCreate,
 )
 from askboard.services.ask import AskService
 from askboard.services.datasets import DatasetService
 from askboard.services.errors import ConflictError, InvalidInputError, NotFoundError, ServiceError
+from askboard.services.relationships import RelationshipService
 from askboard.services.workspaces import WorkspaceService
 
 _READ_CHUNK = 1024 * 1024
@@ -33,6 +36,10 @@ def get_datasets(request: Request) -> DatasetService:
 
 def get_ask(request: Request) -> AskService:
     return request.app.state.ask
+
+
+def get_relationships(request: Request) -> RelationshipService:
+    return request.app.state.relationships
 
 
 async def read_limited(file: UploadFile, max_bytes: int) -> bytes:
@@ -102,6 +109,28 @@ async def list_datasets(workspace_id: UUID, datasets: DatasetService = Depends(g
 @router.get("/workspaces/{workspace_id}/datasets/{dataset_id}", response_model=Dataset)
 async def get_dataset(workspace_id: UUID, dataset_id: UUID, datasets: DatasetService = Depends(get_datasets)):
     return await datasets.get(workspace_id, dataset_id)
+
+
+# --- relationships -----------------------------------------------------------------------------
+
+@router.get("/workspaces/{workspace_id}/relationships", response_model=list[Relationship])
+async def list_relationships(
+    workspace_id: UUID,
+    workspaces: WorkspaceService = Depends(get_workspaces),
+    relationships: RelationshipService = Depends(get_relationships),
+):
+    await workspaces.get(workspace_id)
+    return await relationships.list(workspace_id)
+
+
+@router.patch("/workspaces/{workspace_id}/relationships/{relationship_id}", response_model=Relationship)
+async def update_relationship(
+    workspace_id: UUID,
+    relationship_id: UUID,
+    body: RelationshipUpdate,
+    relationships: RelationshipService = Depends(get_relationships),
+):
+    return await relationships.set_status(workspace_id, relationship_id, body.status)
 
 
 # --- ask ------------------------------------------------------------------------------------

@@ -110,6 +110,21 @@ export interface FailedStep {
   error: string
 }
 
+export type RelationshipStatus = 'suggested' | 'confirmed' | 'rejected'
+
+export interface Relationship {
+  id: string
+  workspace_id: string
+  from_dataset_id: string
+  from_table: string
+  from_column: string
+  to_dataset_id: string
+  to_table: string
+  to_column: string
+  confidence: number
+  status: RelationshipStatus
+}
+
 export interface AskRecord {
   id: string
   created_at: string

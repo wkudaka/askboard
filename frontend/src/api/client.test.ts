@@ -133,6 +133,19 @@ describe('createApiClient', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://api.test/workspaces/ws-1/questions')
   })
 
+  it('lists and updates relationships', async () => {
+    const { api, fetchMock } = setup([])
+
+    await api.listRelationships('ws-1')
+    await api.updateRelationship('ws-1', 'r1', 'confirmed')
+
+    expect(fetchMock.mock.calls[0][0]).toBe('http://api.test/workspaces/ws-1/relationships')
+    const [url, init] = fetchMock.mock.calls[1]
+    expect(url).toBe('http://api.test/workspaces/ws-1/relationships/r1')
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(init.body)).toEqual({ status: 'confirmed' })
+  })
+
   it('encodes path segments', async () => {
     const { api, fetchMock } = setup([])
 

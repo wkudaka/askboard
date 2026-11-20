@@ -13,6 +13,7 @@ from askboard.config import Settings, load_settings
 from askboard.db.database import Database
 from askboard.services.ask import AskService
 from askboard.services.datasets import DatasetService
+from askboard.services.relationships import RelationshipService
 from askboard.services.workspaces import WorkspaceService
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ def create_app(
     app.state.db = db
     app.state.workspaces = WorkspaceService(db)  # type: ignore[arg-type]
     app.state.datasets = DatasetService(db)  # type: ignore[arg-type]
+    app.state.relationships = RelationshipService(db)  # type: ignore[arg-type]
     app.state.ask = AskService(
         db,  # type: ignore[arg-type]
         app.state.datasets,

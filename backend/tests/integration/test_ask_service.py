@@ -109,3 +109,24 @@ async def test_missing_llm_configuration_propagates(migrated_database, datasets,
 
     with pytest.raises(LLMNotConfiguredError):
         await service.ask(loaded.id, "Oi?")
+
+
+async def test_answers_questions_that_join_related_tables(migrated_database, workspaces, datasets):
+    from tests.integration.conftest import FIXTURES
+
+    ws = await workspaces.create("Loja")
+    for filename, fixture_name in [("clientes.csv", "loja_clientes.csv"), ("pedidos.csv", "loja_pedidos.csv")]:
+        preview = await datasets.create_preview(ws.id, filename, (FIXTURES / fixture_name).read_bytes())
+        await datasets.confirm(ws.id, preview.id, ConfirmRequest())
+    join_sql = (
+        "SELECT c.cidade, sum(p.valor) AS receita FROM pedidos p "
+        "JOIN clientes c ON c.id = p.cliente_id GROUP BY c.cidade ORDER BY c.cidade"
+    )
+    llm = scripted(join_sql)
+
+    record = await make_service(migrated_database, datasets, llm).ask(ws.id, "Receita por cidade?")
+
+    assert record.error is None
+    assert record.panels[0].rows == [["Natal", 20.0], ["Recife", 230.5]]
+    system, _ = llm.calls_for(SQLOutput)[0]
+    assert "pedidos.cliente_id = clientes.id" in system

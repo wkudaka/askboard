@@ -68,3 +68,31 @@ def test_escapes_quotes_in_sample_values():
 def test_empty_workspace_has_empty_context():
     assert build_schema_context([]) == ""
     assert allowed_tables([]) == set()
+
+
+# --- relationships ---------------------------------------------------------------
+
+from askboard.models import Relationship  # noqa: E402
+
+
+def relationship(status: str, confidence: float = 1.0) -> Relationship:
+    return Relationship(
+        id=uuid.uuid4(), workspace_id=uuid.uuid4(),
+        from_dataset_id=uuid.uuid4(), from_table="pedidos", from_column="cliente_id",
+        to_dataset_id=uuid.uuid4(), to_table="clientes", to_column="id",
+        confidence=confidence, status=status,
+    )
+
+
+def test_lists_relationships_for_joins():
+    text = build_schema_context([PEDIDOS], [relationship("confirmed"), relationship("suggested", 0.93)])
+
+    assert "Relationships (join on these):" in text
+    assert "  - pedidos.cliente_id = clientes.id (confirmed)" in text
+    assert "  - pedidos.cliente_id = clientes.id (likely, 93% of values match)" in text
+
+
+def test_rejected_relationships_are_left_out():
+    text = build_schema_context([PEDIDOS], [relationship("rejected")])
+
+    assert "Relationships" not in text
